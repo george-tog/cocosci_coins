@@ -1,0 +1,290 @@
+util.seedRNG(3)
+var pTransition1 = 0.2
+var pTransition2 = 0.7
+var pHeads11 = 0.5 // rarely switch coin 1
+var pHeads12 = 0.8 // rarely switch coin 2
+var pHeads21 = 0.5
+var pHeads22 = 0.6
+// define sequence generator
+var generateFrom = function(coinSoFar, flipSoFar, n_flips, pSwitch_12, pSwitch_21, pHeads_1, pHeads_2){
+  var coin = (coinSoFar[coinSoFar.length-1] === 1) ? (flip(pSwitch_12) ? 2 : 1) : (flip(pSwitch_21) ? 1 : 2)
+  var currentFlip = (coin === 1) ? (flip(pHeads_1) ? 'H' : 'T') : (flip(pHeads_2) ? 'H' : 'T')
+  var sequence = coinSoFar.concat(coin)
+  var flipSequence = flipSoFar.concat(currentFlip)
+  
+  if(n_flips > 2) {
+    return generateFrom(sequence, flipSequence, n_flips - 1, pSwitch_12, pSwitch_21, pHeads_1, pHeads_2)
+  } else {
+    return {coins:sequence, faces:flipSequence}
+  }
+}
+// \sin\left(x\cdot\frac{2\pi}{20}\right)+1
+var sinModel = function(n_flips, pHeads_1, pHeads_2, period){
+//   var probs = [0.5, 0.6545084971874737, 0.7938926261462366, 0.9045084971874737, 0.9755282581475768, 1.0, 0.9755282581475768, 0.9045084971874737, 0.7938926261462367, 0.6545084971874737, 0.5000000000000001, 0.34549150281252655, 0.2061073738537635, 0.09549150281252633, 0.024471741852423234, 0.0, 0.02447174185242318, 0.09549150281252622, 0.20610737385376332, 0.34549150281252616]
+  var timepoints = _.range(n_flips)
+  var sinusoid = function(t){
+    return Math.sin(2*Math.PI * t / period) / 2 + 0.5
+  }
+  
+  var probs = map(sinusoid, timepoints)
+  var generateBernoulli = function(prob) {
+  return bernoulli({ p: prob }) ? 1 : 2;
+};
+
+  // Use map to generate a list of coins
+  var coins = map(generateBernoulli, probs);
+//   print("coins")
+//   print(coins)
+  var flipCoins = function(coin) {
+    return coin === 1 ? (bernoulli({ p: pHeads_1 }) ? "H" : "T") : (bernoulli({ p: pHeads_2 }) ? "H" : "T")
+  }
+  // use map to generate list of flips
+  var flips = map(flipCoins, coins)
+//   print("flips")
+//   print(flips)
+  return {coins:coins, faces:flips}
+}
+
+var nonMarkovModel = function(coinSoFar, flipSoFar, n_flips, pSwitch_12, pSwitch_21, pHeads_1, pHeads_2){
+  var headBias = filter(function(x) { return x === "H"}, flipSoFar).length / flipSoFar.length
+  var coin = flip(headBias) ? 2 : 1
+  var currentFlip = (coin === 1) ? (flip(pHeads_1) ? 'H' : 'T') : (flip(pHeads_2) ? 'H' : 'T')
+  var sequence = coinSoFar.concat(coin)
+  var flipSequence = flipSoFar.concat(currentFlip)
+  
+  if(n_flips > 2) {
+    return nonMarkovModel(sequence, flipSequence, n_flips - 1, pSwitch_12, pSwitch_21, pHeads_1, pHeads_2)
+  } else {
+    return {coins:sequence, faces:flipSequence}
+  }
+}
+
+
+
+var n_flips = 20
+var pTransition1 = 0.2
+var pTransition2 = 0.7
+var pHeads11 = 0.5 // rarely switch coin 1
+var pHeads12 = 0.8 // rarely switch coin 2
+var pHeads21 = 0.5
+var pHeads22 = 0.6
+// generate some sequences
+var coin = flip() ? 2 : 1
+var flip1 = (coin === 1) ? (flip(0.5) ? 'H' : 'T') : (flip(0.8) ? 'H' : 'T')
+var flip2 = (coin === 1) ? (flip(0.5) ? 'H' : 'T') : (flip(0.6) ? 'H' : 'T')
+var data_rare_1 = generateFrom([coin], [flip1], n_flips, pTransition1,pTransition1, pHeads11, pHeads12)
+var data_rare_2 = generateFrom([coin], [flip1], n_flips, pTransition1,pTransition1, pHeads11, pHeads12)
+var data_frequent_1 = generateFrom([coin], [flip2], n_flips, pTransition2, pTransition2, pHeads21, pHeads22)
+var data_frequent_2 = generateFrom([coin], [flip2], n_flips, pTransition2, pTransition2, pHeads21, pHeads22)
+// var data_sin_1 = sinModel(n_flips, pHeads11, pHeads12, 20)
+var data_nonmarkov_1 = nonMarkovModel([coin], [flip1], n_flips, pTransition1,pTransition1, pHeads11, pHeads12)
+var data_nonmarkov_2 = nonMarkovModel([coin], [flip2], n_flips, pTransition1,pTransition1, pHeads21, pHeads22)
+
+// hard code these for reproducibility
+var data_rare_1 = { faces: ["T","T","T","T","T","H","H","H","H","T","H","T","T","H","H","H","H","T","H","H"], coins: [1,1,1,2,1,1,2,2,2,2,2,1,1,1,2,2,1,2,2,1] }
+var data_rare_2 = { faces: ["T","H","T","H","T","T","H","H","T","H","H","H","H","H","H","T","H","H","T","T"], coins: [1,1,1,1,1,1,1,2,1,1,1,2,2,2,2,2,2,2,2,2] }
+var data_frequent_1 = { faces: ["T","T","H","T","H","T","T","T","H","H","H","H","T","T","T","H","H","H","T","T"], coins: [1,1,1,2,1,2,1,1,2,1,1,2,1,1,2,1,2,1,2,1] }
+var data_frequent_2 = { faces: ["T","H","T","H","H","H","T","T","H","H","H","T","H","T","H","T","H","T","H","H"], coins: [1,2,2,1,1,2,1,2,1,2,1,2,1,1,2,1,2,2,2,1] }
+var data_nonmarkov_1 = { faces: ["T","T","H","T","T","T","T","T","H","T","H","H","H","H","H","H","H","H","H","H"], coins: [1,1,1,1,1,1,1,1,1,1,1,2,1,2,2,1,1,2,2,2] }
+var data_nonmarkov_2 = { faces: ["T","H","H","H","H","T","H","T","T","T","H","H","H","T","T","H","H","T","T","H"], coins: [1,1,2,2,2,2,2,2,2,1,1,2,1,2,2,1,1,1,1,1] }
+
+
+
+var makeModel = function(pSwitch_12, pSwitch_21, pHeads_1, pHeads_2, observations) { return function() {
+  var coin = flip() ? 1 : 2 // uniform prior on what the first coin is
+  var initSequence = [coin]
+  var generateFrom = function(coinSoFar, n_flips) {
+    //   print(coinSoFar[coinSoFar.length-1])
+    var coin = (coinSoFar[coinSoFar.length-1] === 1) ? (flip(pSwitch_12) ? 2 : 1) : (flip(pSwitch_21) ? 1 : 2)
+    var sequence = coinSoFar.concat(coin)
+    var p_observed_given_coin = (coin === 1) ? Categorical({vs: ['H', 'T'], ps: [pHeads_1,1-pHeads_1]}) : Categorical({vs: ['H', 'T'], ps: [pHeads_2,1-pHeads_2]})
+    var current_observation = observations[coinSoFar.length-1]
+  observe(p_observed_given_coin, current_observation);
+
+  if(n_flips > 2) {
+    return generateFrom(sequence, n_flips - 1)
+  } else {
+    return {coins:sequence}
+  }
+}
+
+  var sequence = generateFrom(initSequence, observations.length)  
+  return sequence.coins
+}
+}
+editor.put("makeModel", makeModel)
+var n_samples = 50000
+
+// ******************************
+// INFERENCE ON MODELS
+// *****************************
+// model is rarely switching
+var model_rare_1 = makeModel(pTransition1,pTransition1,pHeads11, pHeads12, data_rare_1.faces)
+var dist_rare_1 = Infer({method:"MCMC", samples:n_samples}, model_rare_1)
+var dist_rare_1_MAP = Infer({method:"MCMC", samples:n_samples, onlyMAP: true}, model_rare_1)
+viz.casino(data_rare_1.faces, dist_rare_1)
+viz.casino(data_rare_1.coins, dist_rare_1)
+var model_rare_2 = makeModel(pTransition1,pTransition1,pHeads11,pHeads12, data_rare_2.faces)
+var dist_rare_2 = Infer({method:"MCMC", samples:n_samples}, model_rare_2)
+var dist_rare_2_MAP = Infer({method:"MCMC", samples:n_samples, onlyMAP: true}, model_rare_2)
+viz.casino(data_rare_2.faces, dist_rare_2)
+viz.casino(data_rare_2.coins, dist_rare_2)
+
+// model switches with higher frequency
+var model_frequent_1 = makeModel(pTransition2,pTransition2, pHeads21,pHeads22, data_frequent_1.faces)
+var dist_frequent_1 = Infer({method:"MCMC", samples:n_samples}, model_frequent_1)
+var dist_frequent_1_MAP = Infer({method:"MCMC", samples:n_samples, onlyMAP: true}, model_frequent_1)
+viz.casino(data_frequent_1.faces, dist_frequent_1)
+viz.casino(data_frequent_1.coins, dist_frequent_1)
+var model_frequent_2 = makeModel(pTransition2,pTransition2, pHeads21,pHeads22, data_frequent_2.faces)
+var dist_frequent_2 = Infer({method:"MCMC", samples:n_samples}, model_frequent_2)
+var dist_frequent_2_MAP = Infer({method:"MCMC", samples:n_samples, onlyMAP: true}, model_frequent_2)
+viz.casino(data_frequent_2.faces, dist_frequent_2)
+viz.casino(data_frequent_2.coins, dist_frequent_2)
+
+// head-biasing nonmarkov model
+var model_nonmarkov_1 = makeModel(pTransition1,pTransition1,pHeads11,pHeads12, data_nonmarkov_1.faces)
+var dist_nonmarkov_1 = Infer({method:"MCMC", samples:n_samples}, model_nonmarkov_1)
+var dist_nonmarkov_1_MAP = Infer({method:"MCMC", samples:n_samples, onlyMAP: true}, model_nonmarkov_1)
+viz.casino(data_nonmarkov_1.faces, dist_nonmarkov_1)
+viz.casino(data_nonmarkov_1.coins, dist_nonmarkov_1)
+
+var model_nonmarkov_2 = makeModel(pTransition1,pTransition1,pHeads21,pHeads22, data_nonmarkov_2.faces)
+var dist_nonmarkov_2 = Infer({method:"MCMC", samples:n_samples}, model_nonmarkov_2)
+var dist_nonmarkov_2_MAP = Infer({method:"MCMC", samples:n_samples, onlyMAP: true}, model_nonmarkov_2)
+viz.casino(data_nonmarkov_2.faces, dist_nonmarkov_2)
+viz.casino(data_nonmarkov_2.coins, dist_nonmarkov_2)
+
+
+print("observed faces: ")
+print([data_rare_1.faces, data_rare_2.faces, data_frequent_1.faces, data_frequent_2.faces, data_nonmarkov_1.faces, data_nonmarkov_2.faces])
+
+print("true coins: ")
+print([data_rare_1.coins, data_rare_2.coins, data_frequent_1.coins, data_frequent_2.coins, data_nonmarkov_1.coins, data_nonmarkov_2.coins]);
+
+// ******************
+// PLOT HUMAN RESULTS
+// ******************
+
+var human_rare_1 = [0.90909091, 1.0, 1.0, 0.90909091, 0.90909091, 0.63636364, 0.45454545, 0.36363636, 0.36363636, 0.36363636, 0.45454545, 0.54545455, 0.54545455, 0.36363636, 0.18181818, 0.09090909, 0.09090909, 0.18181818, 0.18181818, 0.09090909]
+var human_rare_2 = [0.90909091, 0.90909091, 0.90909091, 1.0, 1.0, 1.0, 0.54545455, 0.45454545, 0.45454545, 0.27272727, 0.0, 0.0, 0.0, 0.09090909, 0.09090909, 0.18181818, 0.18181818, 0.27272727, 0.45454545, 0.45454545]
+var human_frequent_1 = [1.0, 0.81818182, 0.63636364, 0.63636364, 0.54545455, 0.81818182, 0.90909091, 0.90909091, 0.36363636, 0.18181818, 0.0, 0.18181818, 0.72727273, 0.72727273, 0.72727273, 0.27272727, 0.09090909, 0.45454545, 0.54545455, 0.54545455]
+var human_frequent_2 = [1.0, 0.90909091, 0.81818182, 0.09090909, 0.0, 0.18181818, 0.63636364, 0.63636364, 0.45454545, 0.18181818, 0.18181818, 0.27272727, 0.45454545, 0.81818182, 0.54545455, 0.63636364, 0.45454545, 0.36363636, 0.36363636, 0.27272727]
+var human_nonmarkov_1 = [0.90909091, 0.81818182, 0.81818182, 0.90909091, 0.72727273, 0.72727273, 0.90909091, 0.90909091, 0.72727273, 0.54545455, 0.27272727, 0.09090909, 0.18181818, 0.18181818, 0.09090909, 0.27272727, 0.0, 0.09090909, 0.0, 0.18181818]
+var human_nonmarkov_2 = [0.54545455, 0.54545455, 0.45454545, 0.18181818, 0.54545455, 0.36363636, 0.72727273, 0.90909091, 0.81818182, 0.72727273, 0.45454545, 0.36363636, 0.27272727, 0.54545455, 0.63636364, 0.54545455, 0.54545455, 0.45454545, 0.54545455, 0.45454545]
+
+viz.casino(data_rare_1.faces, human_rare_1)
+viz.casino(data_rare_2.faces, human_rare_2)
+viz.casino(data_frequent_1.faces, human_frequent_1)
+viz.casino(data_frequent_2.faces, human_frequent_2)
+viz.casino(data_nonmarkov_1.faces, human_nonmarkov_1)
+viz.casino(data_nonmarkov_2.faces, human_nonmarkov_2)
+
+viz.casino(data_rare_1.coins, human_rare_1)
+viz.casino(data_rare_2.coins, human_rare_2)
+viz.casino(data_frequent_1.coins, human_frequent_1)
+viz.casino(data_frequent_2.coins, human_frequent_2)
+viz.casino(data_nonmarkov_1.coins, human_nonmarkov_1)
+viz.casino(data_nonmarkov_2.coins, human_nonmarkov_2)
+
+
+// ******************
+// QUANTIFY MAP ERROR
+// ******************
+
+
+// calculate mean MAP diff --> CAN'T DO SUBTRACTION??? WHY IS JS SO DUMB. just log the result and do calc in python i guess...
+var mean_MAP_diff = function(dist, actual){
+  const MAP = Object.values(dist.getDist())[0].val
+  const coins = actual.coins
+  var subtract = function(x,y){return x-y}
+  var diff = map2(subtract, MAP, coins)
+  const average = sum(diff) / diff.length; 
+  return average;
+}
+var mean_abs_MAP_diff = function(dist, actual){
+  const MAP = Object.values(dist.getDist())[0].val
+  const coins = actual.coins
+  var squaredError = function(x,y){return Math.abs(x-y)}
+  var diff = map2(squaredError, MAP, coins)
+  const average = sum(diff) / diff.length; 
+  return average;
+}
+
+var mean_abs_diff = function(human, actual){
+  const coins = actual.coins
+  var squaredError = function(x,y){return Math.abs(x-y)}
+  var diff = map2(squaredError, human, coins)
+  const average = sum(diff) / diff.length; 
+  return average;
+}
+
+var mean_diff = function(human, actual){
+  const coins = actual.coins
+  var squaredError = function(x,y){return x-y}
+  var diff = map2(squaredError, human, coins)
+  const average = sum(diff) / diff.length; 
+  return average;
+}
+var print_MAP = function(dist){
+  const MAP = Object.values(dist.getDist())[0].val
+  print(MAP)
+  return MAP;
+}
+
+// mean error of MAP
+var MAP_error_rare_1 = mean_MAP_diff(dist_rare_1_MAP, data_rare_1)
+var MAP_error_rare_2 = mean_MAP_diff(dist_rare_2_MAP, data_rare_2)
+var MAP_error_frequent_1 = mean_MAP_diff(dist_frequent_1_MAP, data_frequent_1)
+var MAP_error_frequent_2 = mean_MAP_diff(dist_frequent_2_MAP, data_frequent_2)
+var MAP_error_nonmarkov_1 = mean_MAP_diff(dist_nonmarkov_1_MAP, data_nonmarkov_1)
+var MAP_error_nonmarkov_2 = mean_MAP_diff(dist_nonmarkov_2_MAP, data_nonmarkov_2)
+
+// abs error of MAP
+var MAP_sq_error_rare_1 = mean_abs_MAP_diff(dist_rare_1_MAP, data_rare_1)
+var MAP_sq_error_rare_2 = mean_abs_MAP_diff(dist_rare_2_MAP, data_rare_2)
+var MAP_sq_error_frequent_1 = mean_abs_MAP_diff(dist_frequent_1_MAP, data_frequent_1)
+var MAP_sq_error_frequent_2 = mean_abs_MAP_diff(dist_frequent_2_MAP, data_frequent_2)
+var MAP_sq_error_nonmarkov_1 = mean_abs_MAP_diff(dist_nonmarkov_1_MAP, data_nonmarkov_1)
+var MAP_sq_error_nonmarkov_2 = mean_abs_MAP_diff(dist_nonmarkov_2_MAP, data_nonmarkov_2)
+
+// abs error of humans
+var human_rare_1 = [1.09090909, 1.0, 1.0, 1.09090909, 1.09090909, 1.36363636, 1.54545455, 1.63636364, 1.63636364, 1.63636364, 1.54545455, 1.45454545, 1.45454545, 1.63636364, 1.81818182, 1.90909091, 1.90909091, 1.81818182, 1.81818182, 1.90909091]
+var human_rare_2 = [1.09090909, 1.09090909, 1.09090909, 1.0, 1.0, 1.0, 1.45454545, 1.54545455, 1.54545455, 1.72727273, 2.0, 2.0, 2.0, 1.90909091, 1.90909091, 1.81818182, 1.81818182, 1.72727273, 1.54545455, 1.54545455]
+var human_frequent_1 = [1.0, 1.18181818, 1.36363636, 1.36363636, 1.45454545, 1.18181818, 1.09090909, 1.09090909, 1.63636364, 1.81818182, 2.0, 1.81818182, 1.27272727, 1.27272727, 1.27272727, 1.72727273, 1.90909091, 1.54545455, 1.45454545, 1.45454545]
+var human_frequent_2 = [1.0, 1.09090909, 1.18181818, 1.90909091, 2.0, 1.81818182, 1.36363636, 1.36363636, 1.54545455, 1.81818182, 1.81818182, 1.72727273, 1.54545455, 1.18181818, 1.45454545, 1.36363636, 1.54545455, 1.63636364, 1.63636364, 1.72727273]
+var human_nonmarkov_1 = [1.09090909, 1.18181818, 1.18181818, 1.09090909, 1.27272727, 1.27272727, 1.09090909, 1.09090909, 1.27272727, 1.45454545, 1.72727273, 1.90909091, 1.81818182, 1.81818182, 1.90909091, 1.72727273, 2.0, 1.90909091, 2.0, 1.81818182]
+var human_nonmarkov_2 = [1.45454545, 1.45454545, 1.54545455, 1.81818182, 1.45454545, 1.63636364, 1.27272727, 1.09090909, 1.18181818, 1.27272727, 1.54545455, 1.63636364, 1.72727273, 1.45454545, 1.36363636, 1.45454545, 1.45454545, 1.54545455, 1.45454545, 1.54545455]
+
+
+var human_error_rare_1 = mean_diff(human_rare_1, data_rare_1)
+var human_error_rare_2 = mean_diff(human_rare_2, data_rare_2)
+var human_error_frequent_1 = mean_diff(human_frequent_1, data_frequent_1)
+var human_error_frequent_2 = mean_diff(human_frequent_2, data_frequent_2)
+var human_error_nonmarkov_1 = mean_diff(human_nonmarkov_1, data_nonmarkov_1)
+var human_error_nonmarkov_2 = mean_diff(human_nonmarkov_2, data_nonmarkov_2)
+
+var human_sq_error_rare_1 = mean_abs_diff(human_rare_1, data_rare_1)
+var human_sq_error_rare_2 = mean_abs_diff(human_rare_2, data_rare_2)
+var human_sq_error_frequent_1 = mean_abs_diff(human_frequent_1, data_frequent_1)
+var human_sq_error_frequent_2 = mean_abs_diff(human_frequent_2, data_frequent_2)
+var human_sq_error_nonmarkov_1 = mean_abs_diff(human_nonmarkov_1, data_nonmarkov_1)
+var human_sq_error_nonmarkov_2 = mean_abs_diff(human_nonmarkov_2, data_nonmarkov_2)
+
+
+print("printing MAPs")
+print_MAP(dist_rare_1_MAP)
+print_MAP(dist_rare_2_MAP)
+print_MAP(dist_frequent_1_MAP)
+print_MAP(dist_frequent_2_MAP)
+print_MAP(dist_nonmarkov_1_MAP)
+print_MAP(dist_nonmarkov_2_MAP)
+
+print("mean MAP errors: rare1, rare2, frequent1, frequent2, nonmarkov1, nonmarkov2")
+print([MAP_error_rare_1,MAP_error_rare_2,MAP_error_frequent_1,MAP_error_frequent_2,MAP_error_nonmarkov_1,MAP_error_nonmarkov_2])
+print("mean absolute MAP errors: rare1, rare2, frequent1, frequent2, nonmarkov1, nonmarkov2")
+print([MAP_sq_error_rare_1,MAP_sq_error_rare_2,MAP_sq_error_frequent_1,MAP_sq_error_frequent_2,MAP_sq_error_nonmarkov_1, MAP_sq_error_nonmarkov_2])
+print("mean human errors: rare1, rare2, frequent1, frequent2, nonmarkov1, nonmarkov2")
+print([human_error_rare_1,human_error_rare_2,human_error_frequent_1,human_error_frequent_2,human_error_nonmarkov_1, human_error_nonmarkov_2])
+print("mean absolute human errors: rare1, rare2, frequent1, frequent2, nonmarkov1, nonmarkov2")
+print([human_sq_error_rare_1,human_sq_error_rare_2,human_sq_error_frequent_1,human_sq_error_frequent_2,human_sq_error_nonmarkov_1, human_sq_error_nonmarkov_2])
